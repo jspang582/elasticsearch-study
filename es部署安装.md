@@ -1,0 +1,140 @@
+# ElsticSearch部署安装
+
+## elasticSearch安装
+
+### 下载
+
+[下载地址](http://download.elasticsearch.org/PATH/TO/VERSION.zip)
+
+### 安装
+
+unzip elasticsearch-`$VERSION.zip`
+cd elasticsearch-$VERSION
+
+> VESRION为下载ES的版本号
+
+### 启动
+
+`./bin/elasticsearch`
+> 加上 -d 可在后台运行
+
+**启动遇到问题:**
+
+* can not run elasticsearch as root  
+
+```{.line-numbers}
+adduser ela             #创建用户，命名ela
+passwd ela              #设置ela的密码
+输入两次密码
+chown -R ela /es的目录   #为ela用户赋予es软件目录的权限
+su ela                  #从root用户下切换至ela用户
+cd /es的目录/bin         #进入es目录
+./elasticsearch         #启动es
+```
+
+* max file descriptors [65535] for elasticsearch process is too low, increase to at least [65536] 
+
+* max number of threads [1024] for user [es] is too low, increase to at least [4096]
+
+* max virtual memory areas vm.max_map_count [65530] is too low, increase to at least [262144]
+
+```{.line-numbers}
+切换到root用户
+1、vi /etc/security/limits.conf 修改如下配置
+* soft nofile 65536
+* hard nofile 131072
+* soft nproc 2048
+* hard nproc 4096
+
+2、vi /etc/security/limits.d/90-nproc.conf   修改如下配置
+* soft nproc 2048
+
+3、vi /etc/sysctl.conf 添加配置
+vm.max_map_count=655360
+运行命令 sysctl -p
+```
+
+* system call filters failed to install;
+
+报错详细信息:
+> system call filters failed to install; check the logs and fix your configuration or disable system call filters at your own risk
+
+错误原因：Centos6不支持SecComp，而高版本ES默认bootstrap.system_call_filter为true进行检测，所以导致检测失败，失败后直接导致ES不能启动
+
+解决办法：
+在elasticsearch.yml中配置bootstrap.system_call_filter为false，注意要在Memory下面:
+
+**设置远程访问**
+注释elasticSearch.yml里network.host: 0.0.0.0
+
+### 集群
+
+`cluster.name` 相同即可
+> 修改elastidsearch.yml里的`cluster.name`
+
+### 分词器安装
+
+#### IK中文分词器
+
+```
+./bin/elasticsearch-plugin install https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v6.5.2/elasticsearch-analysis-ik-6.5.2.zip
+```
+
+##### 关于IK
+
+```{.line-numbers}
+POST   /my_index/_analyze
+	{
+		"analyzer":"ik_max_word",
+		"text":"没有到医院开处方订购处方药是非法的"
+	}
+```
+
+```{.line-numbers}
+POST   /my_index/_analyze
+	{
+		"analyzer":"ik_smart",
+		"text":"没有到医院开处方订购处方药是非法的"
+	}
+```
+
+```{.line-numbers}
+POST   /my_index/_analyze
+	{
+		"analyzer":"smartcn",
+		"text":"没有到医院开处方订购处方药是非法的"
+	}
+```
+
+> smartcn是不准的最好不要用
+
+#### 拼音分词
+
+```
+./bin/elasticsearch-plugin install https://github.com/medcl/elasticsearch-analysis-pinyin/releases/download/v6.5.2/elasticsearch-analysis-pinyin-6.5.2.zip
+```
+
+```{.line-numbers}
+GET _analyze?pretty
+	{
+		"analyzer":"pinyin",
+		"text":"刘德华"
+	} 
+```
+
+#### 关于分词
+
+[关于分词](https://blog.csdn.net/shi_yi_fei/article/details/85266449)
+
+## kibana安装
+
+[下载链接](https://artifacts.elastic.co/downloads/kibana/kibana-6.2.3-linux-x86_64.tar.gz)
+
+解压Kibana 进入根目录，进入config目录，打开kibana.yml 增加
+
+```{.line-numbers}
+server.port: 5601  ### ip访问端口
+server.host: "0.0.0.0"
+elasticsearch.url: "http://127.0.0.1:9200"  ## es的地址
+kibana.index: ".kibana"
+```
